@@ -1,3 +1,4 @@
+import { globalPRNG } from "./PRNG";
 import { NeuralNetworkState } from "../types";
 
 export const INPUT_LABELS = [
@@ -29,9 +30,9 @@ export function createNeuralNetwork(): NeuralNetworkState {
   for (let i = 0; i < hiddenSize; i++) {
     hiddenWeights[i] = [];
     for (let j = 0; j < inputSize; j++) {
-      hiddenWeights[i][j] = (Math.random() - 0.5) * 2;
+      hiddenWeights[i][j] = (globalPRNG.nextFloat(0, 1) - 0.5) * 2;
     }
-    hiddenBiases[i] = (Math.random() - 0.5) * 0.5;
+    hiddenBiases[i] = (globalPRNG.nextFloat(0, 1) - 0.5) * 0.5;
   }
 
   const outputWeights: number[][] = [];
@@ -39,9 +40,9 @@ export function createNeuralNetwork(): NeuralNetworkState {
   for (let i = 0; i < outputSize; i++) {
     outputWeights[i] = [];
     for (let j = 0; j < hiddenSize; j++) {
-      outputWeights[i][j] = (Math.random() - 0.5) * 2;
+      outputWeights[i][j] = (globalPRNG.nextFloat(0, 1) - 0.5) * 2;
     }
-    outputBiases[i] = (Math.random() - 0.5) * 0.5;
+    outputBiases[i] = (globalPRNG.nextFloat(0, 1) - 0.5) * 0.5;
   }
 
   return {
@@ -122,14 +123,14 @@ export function mutateNeuralNetwork(
   for (let i = 0; i < nn.hiddenSize; i++) {
     for (let j = 0; j < nn.inputSize; j++) {
       let w = nn.hiddenLayer.weights[i][j];
-      if (Math.random() < mutationRate) {
-        w += (Math.random() - 0.5) * mutationAmount;
+      if (globalPRNG.nextFloat(0, 1) < mutationRate) {
+        w += (globalPRNG.nextFloat(0, 1) - 0.5) * mutationAmount;
       }
       newNN.hiddenLayer.weights[i][j] = Math.max(-3, Math.min(3, w));
     }
     let b = nn.hiddenLayer.biases[i];
-    if (Math.random() < mutationRate) {
-      b += (Math.random() - 0.5) * mutationAmount;
+    if (globalPRNG.nextFloat(0, 1) < mutationRate) {
+      b += (globalPRNG.nextFloat(0, 1) - 0.5) * mutationAmount;
     }
     newNN.hiddenLayer.biases[i] = b;
   }
@@ -138,14 +139,14 @@ export function mutateNeuralNetwork(
   for (let i = 0; i < nn.outputSize; i++) {
     for (let j = 0; j < nn.hiddenSize; j++) {
       let w = nn.outputLayer.weights[i][j];
-      if (Math.random() < mutationRate) {
-        w += (Math.random() - 0.5) * mutationAmount;
+      if (globalPRNG.nextFloat(0, 1) < mutationRate) {
+        w += (globalPRNG.nextFloat(0, 1) - 0.5) * mutationAmount;
       }
       newNN.outputLayer.weights[i][j] = Math.max(-3, Math.min(3, w));
     }
     let b = nn.outputLayer.biases[i];
-    if (Math.random() < mutationRate) {
-      b += (Math.random() - 0.5) * mutationAmount;
+    if (globalPRNG.nextFloat(0, 1) < mutationRate) {
+      b += (globalPRNG.nextFloat(0, 1) - 0.5) * mutationAmount;
     }
     newNN.outputLayer.biases[i] = b;
   }

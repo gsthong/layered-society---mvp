@@ -128,7 +128,8 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
         const isSelected = selectedAgentId === agent.id;
         const isSleeperActive = agent.isSleeper && agent.isSleeperActivated;
         const isMisinformed = agent.belief > 0.5;
-        const dotColor = isSleeperActive || isMisinformed ? "#E2673F" : "#8FE0AE";
+        let dotColor = isSleeperActive || isMisinformed ? "#E2673F" : "#8FE0AE";
+        if (agent.factionId === 3) dotColor = "#D946EF";
 
         // Selection Box (1px sharp rectangle)
         if (isSelected) {
@@ -183,6 +184,13 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
         }
 
         // Small flat dot (~5px radius)
+        if (agent.factionId === 3) {
+           ctx.strokeStyle = "#FFFFFF";
+           ctx.lineWidth = 1;
+           ctx.beginPath();
+           ctx.arc(agent.x, agent.y, 6, 0, Math.PI * 2);
+           ctx.stroke();
+        }
         ctx.fillStyle = dotColor;
         ctx.beginPath();
         ctx.arc(agent.x, agent.y, 5, 0, Math.PI * 2);

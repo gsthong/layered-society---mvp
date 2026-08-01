@@ -1,3 +1,4 @@
+import { globalPRNG } from "./PRNG";
 import {
   Agent,
   HistoricalMetric,
@@ -7,7 +8,7 @@ import {
   SimulationConfig,
 } from "../types";
 import { calculateLLR, updateBeliefs } from "./BeliefEngine";
-import { createNeuralNetwork, forwardNeuralNetwork } from "./NeuralNetwork";
+import { createNeuralNetwork, forwardNeuralNetwork, mutateNeuralNetwork } from "./NeuralNetwork";
 import { calculateNetworkTopology } from "./SocialGraph";
 
 export class WorldSimulation {
@@ -24,6 +25,8 @@ export class WorldSimulation {
   };
   metricsHistory: HistoricalMetric[] = [];
   logs: LogEntry[] = [];
+  currentSocialCohesion: number = 1.0;
+  adaptiveFModifier: number = 0.25;
 
   constructor(config: SimulationConfig) {
     this.reset(config);
@@ -56,7 +59,7 @@ export class WorldSimulation {
         speed: 1.0,
         radius: 7,
         energy: initEnergy,
-        maxEnergy: 100,
+        maxEnergy: 200,
         status: "active",
         respawnTimer: 0,
         brain: createNeuralNetwork(),
@@ -229,7 +232,7 @@ export class WorldSimulation {
         if (agent.respawnTimer <= 0) {
           // Respawn agent with full energy at new location
           agent.status = "active";
-          agent.energy = agent.maxEnergy;
+          agent.energy = 200;
           agent.x = Math.random() * (config.worldWidth - 100) + 50;
           agent.y = Math.random() * (config.worldHeight - 100) + 50;
           agent.belief = agent.isSleeper ? 0.9 : 0.1;
@@ -368,6 +371,133 @@ export class WorldSimulation {
         }
       });
 
+
+      
+      // --- Cannibalism / Backstabbing Mechanic ---
+      if (agent.energy < 25 && (agent.factionId === 0 || agent.factionId === 1)) {
+         this.agents.forEach((target) => {
+            if (target.id !== agent.id && target.status === "active" && target.factionId === agent.factionId) {
+               const sdx = target.x - agent.x;
+               const sdy = target.y - agent.y;
+               const sdist = Math.sqrt(sdx * sdx + sdy * sdy);
+               // If very close and random chance triggers
+               if (sdist < agent.radius * 3 && globalPRNG.nextFloat(0, 1) < 0.05) {
+                   const stealAmount = 100;
+                   target.energy -= stealAmount;
+                   agent.energy = Math.min(agent.maxEnergy, agent.energy + stealAmount);
+                   
+                   // Psychological break
+                   agent.belief = 1.0;
+                   agent.factionId = 3; // Turns into a Rebel/Murderer
+                   
+                   agent.biographyLogs.unshift({
+                      id: globalPRNG.nextFloat(0, 1).toString(36).substring(2, 9),
+                      tick: this.currentTick,
+                      type: "influence",
+                      message: `BETRAYAL: Cannibalized fellow Citizen #${target.id} for survival. Stole ${stealAmount} Energy.`,
+                      timestamp: new Date().toLocaleTimeString(),
+                   });
+                   
+                   target.biographyLogs.unshift({
+                      id: globalPRNG.nextFloat(0, 1).toString(36).substring(2, 9),
+                      tick: this.currentTick,
+                      type: "influence",
+                      message: `BACKSTABBED: Betrayed by Agent #${agent.id}. Lost ${stealAmount} Energy.`,
+                      timestamp: new Date().toLocaleTimeString(),
+                   });
+                   
+                   this.addLog("belief", `🗡️ BETRAYAL: Agent #${agent.id} backstabbed #${target.id} for survival!`);
+               }
+            }
+         });
+      }
+
+      // --- Rebel Stealing Mechanic ---
+      if (agent.factionId === 3) {
+         this.agents.forEach((target) => {
+            if (target.id !== agent.id && target.status === "active" && target.factionId !== 3) {
+               const sdx = target.x - agent.x;
+               const sdy = target.y - agent.y;
+               const sdist = Math.sqrt(sdx * sdx + sdy * sdy);
+               if (sdist < agent.radius * 2.5) {
+                   const stealAmount = 2.0;
+                   target.energy -= stealAmount;
+                   agent.energy = Math.min(agent.maxEnergy, agent.energy + stealAmount);
+                   
+                   if (agent.lifetimeTicks % 60 === 0) {
+                      agent.biographyLogs.unshift({
+                         id: globalPRNG.nextFloat(0, 1).toString(36).substring(2, 9),
+                         tick: this.currentTick,
+                         type: "influence",
+                         message: `REBEL ACTION: Ambushed Agent #${target.id} and looted ${stealAmount} Energy.`,
+                         timestamp: new Date().toLocaleTimeString(),
+                      });
+                   }
+               }
+            }
+         });
+      }
+
+      // --- Reproduction Mechanic (Evolution) ---
+      if (agent.energy > 160 && this.agents.length < config.agentCount * 1.5) {
+         agent.energy -= 80;
+
+         const childBrain = mutateNeuralNetwork(agent.brain, 0.2, 0.3);
+         const childId = this.agents.length + 1;
+         
+         const child: Agent = {
+            id: childId,
+            x: agent.x + (globalPRNG.nextFloat(0, 1) - 0.5) * 10,
+            y: agent.y + (globalPRNG.nextFloat(0, 1) - 0.5) * 10,
+            vx: Math.cos(agent.angle + Math.PI),
+            vy: Math.sin(agent.angle + Math.PI),
+            angle: agent.angle + Math.PI,
+            speed: 1.0,
+            radius: 7,
+            energy: 80,
+            maxEnergy: 200,
+            status: "active",
+            respawnTimer: 0,
+            brain: childBrain,
+            belief: agent.belief,
+            llr: agent.llr,
+            isSleeper: false,
+            isSleeperActivated: false,
+            isImmune: globalPRNG.nextFloat(0, 1) < 0.2,
+            factionId: agent.factionId,
+            neighborsCount: 0,
+            memoryStream: [`Agent #${childId} evolved from Parent #${agent.id} at Tick ${this.currentTick}.`],
+            biographyLogs: [
+              {
+                id: globalPRNG.nextFloat(0, 1).toString(36).substring(2, 9),
+                tick: this.currentTick,
+                type: "birth",
+                message: `Born via natural reproduction. Inherited mutated neural weights from Parent #${agent.id}.`,
+                timestamp: new Date().toLocaleTimeString(),
+              },
+            ],
+            lastReflectionTick: 0,
+            reflections: [],
+            isReflecting: false,
+            resourcesGathered: 0,
+            lifetimeTicks: 0,
+            distanceTraveled: 0,
+            color: agent.color,
+            trail: [],
+         };
+         this.agents.push(child);
+         
+         agent.biographyLogs.unshift({
+            id: globalPRNG.nextFloat(0, 1).toString(36).substring(2, 9),
+            tick: this.currentTick,
+            type: "birth",
+            message: `Reproduced! Spawned offspring Agent #${childId} (-80 Energy).`,
+            timestamp: new Date().toLocaleTimeString(),
+         });
+         
+         this.addLog("system", `🧬 Evolution: Agent #${agent.id} reproduced offspring #${childId}.`);
+      }
+
       // Depletion / Death check
       if (agent.energy <= 0) {
         agent.energy = 0;
@@ -383,6 +513,28 @@ export class WorldSimulation {
         });
       }
     });
+
+    
+    // --- Evolutionary Defense Control Loop ---
+    if (config.swMsrEnabled) {
+      const activeAgents = this.agents.filter((a) => a.status === "active");
+      const activeCount = activeAgents.length;
+      if (activeCount > 1) {
+        const avgBelief = activeAgents.reduce((sum, a) => sum + a.belief, 0) / activeCount;
+        const variance = activeAgents.reduce((sum, a) => sum + Math.pow(a.belief - avgBelief, 2), 0) / activeCount;
+        const stdDev = Math.sqrt(variance);
+        const cohesion = Math.max(0, Math.min(1.0, 1.0 - stdDev * 2.2));
+        
+        if (cohesion < 0.6) {
+            this.adaptiveFModifier = Math.min(0.40, this.adaptiveFModifier + 0.005);
+        } else if (cohesion > 0.8) {
+            this.adaptiveFModifier = Math.max(0.05, this.adaptiveFModifier - 0.001);
+        }
+        
+        this.currentSocialCohesion = cohesion;
+      }
+    }
+    // ----------------------------------------
 
     // 4. Layer 2 Belief Update & Defense
     const { beliefSpikes, defenseTriggers } = updateBeliefs(
@@ -434,6 +586,108 @@ export class WorldSimulation {
         this.metricsHistory.shift();
       }
     }
+  }
+
+
+  public runBatchExperiment(ticksPerRun: number, config: SimulationConfig, numRuns: number = 3): string {
+    const fullMetrics = [];
+    
+    for (let r = 0; r < numRuns; r++) {
+      config.randomSeed = (config.randomSeed || 12345) + r * 1000;
+      this.reset(config);
+      let sleepersActivated = false;
+
+      for (let i = 0; i < ticksPerRun; i++) {
+        this.tick(config);
+        
+        if (this.currentTick === 50 && !sleepersActivated && config.sleeperRatio > 0) {
+           this.toggleSleeperActivation();
+           sleepersActivated = true;
+        }
+
+        const activeAgents = this.agents.filter((a) => a.status === "active");
+        const activeCount = activeAgents.length;
+        const depletedCount = this.agents.filter((a) => a.status === "depleted" || a.status === "respawning").length;
+        const sleeperCount = this.agents.filter((a) => a.isSleeper && a.isSleeperActivated).length;
+
+        const avgEnergy = activeCount > 0 ? activeAgents.reduce((sum, a) => sum + a.energy, 0) / activeCount : 0;
+        const avgBelief = activeCount > 0 ? activeAgents.reduce((sum, a) => sum + a.belief, 0) / activeCount : 0;
+
+        let socialCohesion = 1.0;
+        if (activeCount > 1) {
+          const variance = activeAgents.reduce((sum, a) => sum + Math.pow(a.belief - avgBelief, 2), 0) / activeCount;
+          const stdDev = Math.sqrt(variance);
+          socialCohesion = Math.max(0, Math.min(1.0, 1.0 - stdDev * 2.2));
+        }
+
+        fullMetrics.push({
+          run_seed: config.randomSeed,
+          tick: this.currentTick,
+          avgEnergy: Math.round(avgEnergy * 10) / 10,
+          avgBelief: Math.round(avgBelief * 100) / 100,
+          socialCohesion: Math.round(socialCohesion * 100) / 100,
+          activeCount,
+          depletedCount,
+          sleeperCount,
+          fiedlerValue: this.topology.fiedlerValue,
+          fModifier: this.adaptiveFModifier
+        });
+      }
+    }
+
+    const headers = ["run_seed", "tick", "avgEnergy", "avgBelief", "socialCohesion", "activeCount", "depletedCount", "sleeperCount", "fiedlerValue", "fModifier"];
+    let csv = headers.join(",") + "\n";
+    for (const m of fullMetrics) {
+      csv += `${m.run_seed},${m.tick},${m.avgEnergy},${m.avgBelief},${m.socialCohesion},${m.activeCount},${m.depletedCount},${m.sleeperCount},${m.fiedlerValue},${m.fModifier.toFixed(3)}\n`;
+    }
+    
+    return csv;
+  }
+
+  public runAgentMLBatchExperiment(ticksPerRun: number, config: SimulationConfig, numRuns: number = 5): string {
+    const fullMetrics = [];
+    
+    for (let r = 0; r < numRuns; r++) {
+      config.randomSeed = (config.randomSeed || 12345) + r * 1000;
+      this.reset(config);
+      let sleepersActivated = false;
+
+      for (let i = 0; i < ticksPerRun; i++) {
+        this.tick(config);
+        
+        if (this.currentTick === 50 && !sleepersActivated && config.sleeperRatio > 0) {
+           this.toggleSleeperActivation();
+           sleepersActivated = true;
+        }
+
+        // Sample agent behavior every 10 ticks
+        if (this.currentTick % 10 === 0) {
+          for (const a of this.agents) {
+             if (a.status !== "active") continue;
+             fullMetrics.push({
+                run_seed: config.randomSeed,
+                tick: this.currentTick,
+                agentId: a.id,
+                isSleeper: a.isSleeper ? 1 : 0,
+                belief: a.belief.toFixed(4),
+                llr: a.llr.toFixed(4),
+                speed: a.speed.toFixed(3),
+                energy: a.energy.toFixed(1),
+                neighborsCount: a.neighborsCount,
+                distanceTraveled: a.distanceTraveled.toFixed(1)
+             });
+          }
+        }
+      }
+    }
+
+    const headers = ["run_seed", "tick", "agentId", "isSleeper", "belief", "llr", "speed", "energy", "neighborsCount", "distanceTraveled"];
+    let csv = headers.join(",") + "\n";
+    for (const m of fullMetrics) {
+      csv += `${m.run_seed},${m.tick},${m.agentId},${m.isSleeper},${m.belief},${m.llr},${m.speed},${m.energy},${m.neighborsCount},${m.distanceTraveled}\n`;
+    }
+    
+    return csv;
   }
 
   public exportStateJSON(): string {

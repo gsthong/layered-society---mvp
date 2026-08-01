@@ -1,3 +1,4 @@
+import { globalPRNG } from "./PRNG";
 import { Agent, GraphEdge, NetworkTopology } from "../types";
 
 /**
@@ -103,7 +104,7 @@ function estimateFiedlerValue(A: number[][], n: number): number {
 
   // Check if graph is disconnected
   const isConnected = D.every((deg) => deg > 0);
-  if (!isConnected) return 0.05 + Math.random() * 0.02; // low connectivity
+  if (!isConnected) return 0.05 + globalPRNG.nextFloat(0, 1) * 0.02; // low connectivity
 
   // Maximum degree bound approximation
   const maxDeg = Math.max(...D);
@@ -141,4 +142,34 @@ function estimateAvgPathLength(A: number[][], n: number): number {
   }
 
   return pairs > 0 ? totalDist / pairs : 0;
+}
+
+
+/**
+ * Calculates Degree Centrality for all agents and returns them sorted by highest degree.
+ * Used by Adversarial AI to target hub nodes.
+ */
+export function calculateNodeCentrality(
+  agents: Agent[],
+  communicationRadius: number
+): { agentId: number; degree: number }[] {
+  const n = agents.length;
+  const centralities = agents.map(a => ({ agentId: a.id, degree: 0 }));
+
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const a1 = agents[i];
+      const a2 = agents[j];
+      const dx = a1.x - a2.x;
+      const dy = a1.y - a2.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist <= communicationRadius) {
+        centralities[i].degree++;
+        centralities[j].degree++;
+      }
+    }
+  }
+
+  return centralities.sort((a, b) => b.degree - a.degree);
 }

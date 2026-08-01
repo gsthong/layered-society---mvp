@@ -22,6 +22,8 @@ interface ControlsPanelProps {
   onReset: () => void;
   onTriggerDisaster: () => void;
   onExportJSON: () => void;
+  onExportCSV: () => void;
+  onExportAgentCSV: () => void;
 }
 
 export const ControlsPanel: React.FC<ControlsPanelProps> = ({
@@ -32,6 +34,8 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
   onReset,
   onTriggerDisaster,
   onExportJSON,
+  onExportCSV,
+  onExportAgentCSV,
 }) => {
   return (
     <div className="bg-[#101317] border border-[#20252C] p-2 text-[#C9CFD6] font-mono text-xs">
@@ -205,6 +209,22 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
             title="Export full tick state as JSON"
           >
             <Download className="w-3.5 h-3.5 text-[#5C6570]" /> Export JSON
+          </button>
+
+          <button
+            onClick={onExportCSV}
+            className="flex items-center gap-1 px-2.5 py-1 uppercase text-[11px] font-mono font-bold bg-[#0A0C0F] hover:bg-[#151920] text-[#A855F7] border border-[#A855F7] transition-colors cursor-pointer"
+            title="Run 5000 Ticks and Export Global Metrics CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-[#A855F7]" /> BATCH CSV
+          </button>
+
+          <button
+            onClick={onExportAgentCSV}
+            className="flex items-center gap-1 px-2.5 py-1 uppercase text-[11px] font-mono font-bold bg-[#0A0C0F] hover:bg-[#151920] text-[#3B82F6] border border-[#3B82F6] transition-colors cursor-pointer"
+            title="Export Agent-Level ML Dataset (2000 Ticks)"
+          >
+            <Download className="w-3.5 h-3.5 text-[#3B82F6]" /> ML DATA
           </button>
         </div>
       </div>

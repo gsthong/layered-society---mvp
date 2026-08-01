@@ -5,7 +5,11 @@
 export class PRNG {
   private seed: number;
 
-  constructor(seed: number) {
+  constructor(seed: number = 12345) {
+    this.seed = seed;
+  }
+
+  public setSeed(seed: number) {
     this.seed = seed;
   }
 
@@ -26,3 +30,5 @@ export class PRNG {
     return min + this.next() * (max - min);
   }
 }
+
+export const globalPRNG = new PRNG(12345);

@@ -1,3 +1,4 @@
+import { globalPRNG } from "./PRNG";
 import { Agent } from "../types";
 
 /**
@@ -19,6 +20,7 @@ export function updateBeliefs(
   agents: Agent[],
   swMsrEnabled: boolean,
   visionRadius: number,
+  adaptiveFModifier: number,
   beliefDecay: number = 0.001
 ): { beliefSpikes: number; defenseTriggers: number } {
   let beliefSpikes = 0;
@@ -37,7 +39,7 @@ export function updateBeliefs(
 
     // Sleeper agents maintain high misinformation signal when activated
     if (agent.isSleeper && agent.isSleeperActivated) {
-      newBeliefs[i] = 0.95 + (Math.random() - 0.5) * 0.08;
+      newBeliefs[i] = 0.95 + (globalPRNG.nextFloat(0, 1) - 0.5) * 0.08;
       agent.llr = calculateLLR(newBeliefs[i]);
       continue;
     }
@@ -75,22 +77,31 @@ export function updateBeliefs(
       defenseTriggers++;
       const sorted = [...neighborBeliefs].sort((a, b) => a - b);
 
-      if (sorted.length >= 2) {
-        // SW-MSR: Trim the highest outlier(s) (malicious/sleeper panic signals)
-        const trimCount = Math.max(1, Math.floor(sorted.length * 0.25));
-        const trustedNeighbors = sorted.slice(0, sorted.length - trimCount);
+      // SW-MSR Algorithm: Assuming up to f malicious nodes in the neighborhood.
+      // A common robust choice is f = floor(neighbor_count * 0.25).
+      const f = Math.max(1, Math.floor(sorted.length * adaptiveFModifier));
+      
+      if (sorted.length > 2 * f) {
+        // Trim the f smallest and f largest values (Symmetric Trimming)
+        const trustedNeighbors = sorted.slice(f, sorted.length - f);
         const sumTrusted = trustedNeighbors.reduce((acc, val) => acc + val, 0);
         const avgTrusted = sumTrusted / trustedNeighbors.length;
 
         targetBelief = agent.belief * 0.85 + avgTrusted * 0.15;
-      } else {
-        // Single neighbor under SW-MSR: Guard against suspicious extreme panic signal (>0.7)
-        const neighborVal = sorted[0];
-        if (neighborVal > 0.7 && agent.belief < 0.4) {
-          // Filter suspicious single-source panic
-          targetBelief = agent.belief * 0.95 + neighborVal * 0.05;
+      } else if (sorted.length > 0) {
+        // If not enough neighbors to trim 2*f safely, trim just the single most extreme if there's >1 neighbor
+        if (sorted.length >= 2) {
+            const trustedNeighbors = sorted.slice(0, sorted.length - 1); // trim only the highest panic signal
+            const avgTrusted = trustedNeighbors.reduce((acc, val) => acc + val, 0) / trustedNeighbors.length;
+            targetBelief = agent.belief * 0.85 + avgTrusted * 0.15;
         } else {
-          targetBelief = agent.belief * 0.85 + neighborVal * 0.15;
+            const neighborVal = sorted[0];
+            if (neighborVal > 0.7 && agent.belief < 0.4) {
+              // Filter suspicious single-source panic
+              targetBelief = agent.belief * 0.95 + neighborVal * 0.05;
+            } else {
+              targetBelief = agent.belief * 0.85 + neighborVal * 0.15;
+            }
         }
       }
     } else {
@@ -102,7 +113,7 @@ export function updateBeliefs(
     }
 
     // Small cognitive noise
-    targetBelief += (Math.random() - 0.5) * 0.008;
+    targetBelief += (globalPRNG.nextFloat(0, 1) - 0.5) * 0.008;
     targetBelief = Math.max(0, Math.min(1, targetBelief));
 
     if (targetBelief > 0.7 && agent.belief <= 0.7) {
@@ -117,7 +128,9 @@ export function updateBeliefs(
     agents[i].belief = newBeliefs[i];
     agents[i].llr = calculateLLR(newBeliefs[i]);
 
-    if (agents[i].belief < 0.35) {
+    if (agents[i].belief > 0.85 && agents[i].energy < 35 && agents[i].status === "active") {
+      agents[i].factionId = 3; // Delta Faction (Rebel/Rioter - Magenta)
+    } else if (agents[i].belief < 0.35) {
       agents[i].factionId = 0; // Alpha Faction (Safe/Truth - Green)
     } else if (agents[i].belief < 0.7) {
       agents[i].factionId = 1; // Beta Faction (Uncertain - Neutral)

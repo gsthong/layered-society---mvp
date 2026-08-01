@@ -148,6 +148,52 @@ export default function App() {
     setTickCount((t) => t + 1);
   };
 
+
+  const handleExportCSV = async () => {
+    if (!simRef.current) return;
+    setIsRunning(false);
+    const csvStr = simRef.current.runBatchExperiment(5000, config);
+    
+    try {
+      const res = await fetch('/api/save-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv: csvStr })
+      });
+      if (!res.ok) throw new Error('Failed to save CSV. Status: ' + res.status);
+      alert('Đã lưu thành công file layered-society-batch-run.csv vào thư mục gốc của dự án! Bạn có thể chạy Python vẽ biểu đồ ngay bây giờ.');
+    } catch (err) {
+      console.error(err);
+      alert('Lỗi lưu file.');
+    }
+    
+    simRef.current.reset(config);
+    setTickCount((t) => t + 1);
+  };
+
+
+  const handleExportAgentCSV = async () => {
+    if (!simRef.current) return;
+    setIsRunning(false);
+    const csvStr = simRef.current.runAgentMLBatchExperiment(2000, config);
+    
+    try {
+      const res = await fetch('/api/save-agent-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv: csvStr })
+      });
+      if (!res.ok) throw new Error('Failed to save Agent CSV. Status: ' + res.status);
+      alert('Đã lưu thành công file ml-agent-dataset.csv vào thư mục gốc của dự án! Bạn có thể chạy Python AI ngay bây giờ.');
+    } catch (err) {
+      console.error(err);
+      alert('Lỗi lưu file.');
+    }
+    
+    simRef.current.reset(config);
+    setTickCount((t) => t + 1);
+  };
+
   const handleExportJSON = () => {
     if (!simRef.current) return;
     const jsonStr = simRef.current.exportStateJSON();
@@ -206,6 +252,8 @@ export default function App() {
             onReset={handleReset}
             onTriggerDisaster={handleTriggerDisaster}
             onExportJSON={handleExportJSON}
+            onExportCSV={handleExportCSV}
+            onExportAgentCSV={handleExportAgentCSV}
           />
 
           <div className="flex-1 min-h-0 bg-[#101317] border border-[#20252C] p-1">

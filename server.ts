@@ -1,4 +1,5 @@
 import express from "express";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
@@ -9,7 +10,7 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 
 // Initialize Gemini API client lazily / safely
 function getGeminiClient() {
@@ -91,6 +92,31 @@ Format output strictly as JSON with keys "thought" and "strategy".`;
       success: false,
       error: error.message || "Failed to generate reflection",
     });
+  }
+});
+
+
+
+
+app.post("/api/save-csv", (req, res) => {
+  try {
+    const csvContent = req.body.csv;
+    const filePath = path.join(process.cwd(), "layered-society-batch-run.csv");
+    fs.writeFileSync(filePath, csvContent);
+    res.json({ success: true, path: filePath });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/save-agent-csv", (req, res) => {
+  try {
+    const csvContent = req.body.csv;
+    const filePath = path.join(process.cwd(), "ml-agent-dataset.csv");
+    fs.writeFileSync(filePath, csvContent);
+    res.json({ success: true, path: filePath });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

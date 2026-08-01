@@ -1,3 +1,4 @@
+import { globalPRNG } from "../core/PRNG";
 import React, { useState } from "react";
 import { Agent, AgentMilestone } from "../types";
 import { Sparkles, History, Bot, Loader2, Bookmark, ShieldAlert, Zap, Skull, RefreshCw, Flame } from "lucide-react";
@@ -63,7 +64,7 @@ export const ReflectionPanel: React.FC<ReflectionPanelProps> = ({
         // Also append to biography logs
         if (!agent.biographyLogs) agent.biographyLogs = [];
         agent.biographyLogs.unshift({
-          id: Math.random().toString(36).substring(2, 9),
+          id: globalPRNG.nextFloat(0, 1).toString(36).substring(2, 9),
           tick: agent.lifetimeTicks,
           type: "reflection",
           message: `L4 Generative Reflection: "${data.thought}" Strategy: ${data.strategy}`,
