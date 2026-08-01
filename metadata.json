@@ -1,0 +1,6 @@
+{
+  "name": "Layered Society — MVP",
+  "description": "A 2D agent-based social simulation sandbox featuring neural network brains, SPM belief dynamics, sleeper agents, network topology, and Gemini LLM reflections.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
